@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Atomic Watch</string>
+    <string name="title">Atomic Watch</string>
+    <string name="subtitle">Hora calibrada con la API oficial de Time.is</string>
+    <string name="not_synced">Sin sincronizar</string>
+    <string name="sync_now">Sincronizar ahora</string>
+    <string name="settings">Configurar Time.is</string>
+    <string name="open_time_is">Abrir Time.is</string>
+</resources>
