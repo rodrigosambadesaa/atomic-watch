@@ -1,0 +1,32 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Build Debug and Release
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug assembleRelease
+
+      - name: Verify complete connectivity gist integration
+        run: |
+          cmp third_party/connectivity/ConnectivityAndInternetAccess.java \
+              app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
+          test -f third_party/connectivity/ConnectivityAndInternetAccess.kt
+          test -f third_party/connectivity/README.md
