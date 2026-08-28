@@ -1,0 +1,1248 @@
+name: Bootstrap Atomic Watch
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/bootstrap.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v4
+        with:
+          path: target
+
+      - name: Checkout verified Android template
+        uses: actions/checkout@v4
+        with:
+          repository: rodrigosambadesaa/noticias-eldiario
+          ref: ad00b6616ff673a96042925f42b7f9dc2adcaf7d
+          path: template
+
+      - name: Generate Atomic Watch app
+        shell: bash
+        env:
+          GIST_REV: ce7bd07ed17d10d48785a0c21527c8100ea6da7e
+        run: |
+          set -euo pipefail
+          rsync -a --exclude='.git' --exclude='.github' template/ target/
+
+          rm -rf target/app/src/main/java target/app/src/main/res/layout target/app/src/main/res/values target/app/src/main/res/drawable
+          mkdir -p target/app/src/main/java/com/rodrigosambade/atomicwatch
+          mkdir -p target/app/src/main/java/net/i2p/android/router/util
+          mkdir -p target/app/src/main/res/layout target/app/src/main/res/values target/app/src/main/res/drawable
+
+          rm -rf target/third_party/connectivity
+          git clone --quiet https://gist.github.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f.git target/third_party/connectivity
+          git -C target/third_party/connectivity checkout --quiet "$GIST_REV"
+          rm -rf target/third_party/connectivity/.git
+          cp target/third_party/connectivity/ConnectivityAndInternetAccess.java \
+             target/app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
+
+          cat > target/app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.rodrigosambade.atomicwatch'
+              compileSdkVersion 35
+
+              defaultConfig {
+                  applicationId "com.rodrigosambade.atomicwatch"
+                  minSdkVersion 16
+                  targetSdkVersion 35
+                  versionCode 1
+                  versionName "1.0.0"
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_1_8
+                  targetCompatibility JavaVersion.VERSION_1_8
+              }
+
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.debug
+                      minifyEnabled false
+                      proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+                  }
+              }
+          }
+
+          dependencies {
+              implementation 'com.android.support:appcompat-v7:28.0.0'
+          }
+          EOF
+
+          cat > target/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+              <application
+                  android:allowBackup="true"
+                  android:icon="@drawable/ic_atomic_clock"
+                  android:label="@string/app_name"
+                  android:supportsRtl="true"
+                  android:theme="@style/AppTheme"
+                  android:usesCleartextTraffic="false">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > target/app/src/main/res/values/colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="background">#F4F7FA</color>
+              <color name="surface">#FFFFFF</color>
+              <color name="primary">#102A43</color>
+              <color name="primary_dark">#0B1F33</color>
+              <color name="accent">#00796B</color>
+              <color name="text_primary">#102A43</color>
+              <color name="text_secondary">#52606D</color>
+              <color name="ok">#1B7F5A</color>
+              <color name="warning">#A65F00</color>
+              <color name="error">#B3261E</color>
+          </resources>
+          EOF
+
+          cat > target/app/src/main/res/values/styles.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="Theme.AppCompat.Light.NoActionBar">
+                  <item name="colorPrimary">@color/primary</item>
+                  <item name="colorPrimaryDark">@color/primary_dark</item>
+                  <item name="colorAccent">@color/accent</item>
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:navigationBarColor">@color/primary_dark</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > target/app/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">Atomic Watch</string>
+              <string name="title">Atomic Watch</string>
+              <string name="subtitle">Hora calibrada con la API oficial de Time.is</string>
+              <string name="not_synced">Sin sincronizar</string>
+              <string name="sync_now">Sincronizar ahora</string>
+              <string name="settings">Configurar Time.is</string>
+              <string name="open_time_is">Abrir Time.is</string>
+          </resources>
+          EOF
+
+          cat > target/app/src/main/res/drawable/ic_atomic_clock.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <shape android:shape="oval">
+                      <solid android:color="#102A43" />
+                      <stroke android:width="2dp" android:color="#B8D8D4" />
+                  </shape>
+              </item>
+              <item android:width="4dp" android:height="24dp" android:gravity="center">
+                  <shape android:shape="rectangle"><solid android:color="#FFFFFF" /></shape>
+              </item>
+              <item android:width="20dp" android:height="4dp" android:gravity="center">
+                  <shape android:shape="rectangle"><solid android:color="#FFFFFF" /></shape>
+              </item>
+          </layer-list>
+          EOF
+
+          cat > target/app/src/main/res/layout/activity_main.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+              android:layout_width="match_parent"
+              android:layout_height="match_parent"
+              android:fillViewport="true"
+              android:background="@color/background">
+
+              <LinearLayout
+                  android:layout_width="match_parent"
+                  android:layout_height="wrap_content"
+                  android:orientation="vertical"
+                  android:padding="20dp">
+
+                  <TextView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="@string/title"
+                      android:textColor="@color/text_primary"
+                      android:textSize="28sp"
+                      android:textStyle="bold" />
+
+                  <TextView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="2dp"
+                      android:text="@string/subtitle"
+                      android:textColor="@color/text_secondary"
+                      android:textSize="14sp" />
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="20dp"
+                      android:background="@color/surface"
+                      android:orientation="vertical"
+                      android:padding="20dp">
+
+                      <TextView
+                          android:id="@+id/atomicTime"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:fontFamily="monospace"
+                          android:gravity="center"
+                          android:text="--:--:--.---"
+                          android:textColor="@color/text_primary"
+                          android:textSize="42sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:id="@+id/atomicDate"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="6dp"
+                          android:gravity="center"
+                          android:text="@string/not_synced"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="16sp" />
+
+                      <TextView
+                          android:id="@+id/utcTime"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="8dp"
+                          android:gravity="center"
+                          android:text="UTC --:--:--.---"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="14sp" />
+                  </LinearLayout>
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="14dp"
+                      android:background="@color/surface"
+                      android:orientation="vertical"
+                      android:padding="18dp">
+
+                      <TextView
+                          android:layout_width="wrap_content"
+                          android:layout_height="wrap_content"
+                          android:text="Error del reloj del sistema"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:id="@+id/systemError"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="4dp"
+                          android:text="Sin calibrar"
+                          android:textColor="@color/text_primary"
+                          android:textSize="24sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:id="@+id/systemTime"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="6dp"
+                          android:text="Hora del sistema: --"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp" />
+                  </LinearLayout>
+
+                  <LinearLayout
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="14dp"
+                      android:background="@color/surface"
+                      android:orientation="vertical"
+                      android:padding="18dp">
+
+                      <TextView
+                          android:id="@+id/syncStatus"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:text="Configure la API oficial de Time.is para comenzar."
+                          android:textColor="@color/text_primary"
+                          android:textSize="15sp"
+                          android:textStyle="bold" />
+
+                      <TextView
+                          android:id="@+id/sourceDetails"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="8dp"
+                          android:text="Fuente: Time.is API\nÚltima sincronización: —\nRTT: —\nIncertidumbre estimada: —"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp" />
+
+                      <TextView
+                          android:id="@+id/networkStatus"
+                          android:layout_width="match_parent"
+                          android:layout_height="wrap_content"
+                          android:layout_marginTop="10dp"
+                          android:text="Red: comprobando…"
+                          android:textColor="@color/text_secondary"
+                          android:textSize="13sp" />
+                  </LinearLayout>
+
+                  <Button
+                      android:id="@+id/syncButton"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="16dp"
+                      android:text="@string/sync_now" />
+
+                  <Button
+                      android:id="@+id/settingsButton"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="@string/settings" />
+
+                  <Button
+                      android:id="@+id/openTimeIsButton"
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:text="@string/open_time_is" />
+
+                  <TextView
+                      android:layout_width="match_parent"
+                      android:layout_height="wrap_content"
+                      android:layout_marginTop="14dp"
+                      android:text="Atomic Watch no modifica la hora del dispositivo. Mide su desfase respecto a la referencia remota y mantiene el reloj calibrado mediante un ancla monotónica entre sincronizaciones."
+                      android:textColor="@color/text_secondary"
+                      android:textSize="12sp" />
+              </LinearLayout>
+          </ScrollView>
+          EOF
+
+          cat > target/app/src/main/java/com/rodrigosambade/atomicwatch/MainActivity.java <<'EOF'
+          package com.rodrigosambade.atomicwatch;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.SystemClock;
+          import android.support.v7.app.AlertDialog;
+          import android.support.v7.app.AppCompatActivity;
+          import android.text.InputType;
+          import android.view.ViewGroup;
+          import android.widget.Button;
+          import android.widget.EditText;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import net.i2p.android.router.util.ConnectivityAndInternetAccess;
+
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          import java.util.Locale;
+          import java.util.TimeZone;
+
+          public final class MainActivity extends AppCompatActivity {
+              private static final String PREFS = "atomic_watch";
+              private static final String PREF_API_URL = "time_is_api_url";
+              private static final String PREF_API_KEY = "time_is_api_key";
+              private static final String PREF_AUTH_HEADER = "time_is_auth_header";
+              private static final String PREF_AUTH_PREFIX = "time_is_auth_prefix";
+              private static final String PREF_INTERVAL_SECONDS = "sync_interval_seconds";
+              private static final long DEFAULT_INTERVAL_SECONDS = 300L;
+              private static final long MIN_INTERVAL_SECONDS = 60L;
+
+              private final Handler uiHandler = new Handler(Looper.getMainLooper());
+              private final AtomicClockModel clockModel = new AtomicClockModel();
+              private final ConnectivityAndInternetAccess connectivity =
+                      new ConnectivityAndInternetAccess.Builder().build();
+
+              private TextView atomicTime;
+              private TextView atomicDate;
+              private TextView utcTime;
+              private TextView systemError;
+              private TextView systemTime;
+              private TextView syncStatus;
+              private TextView sourceDetails;
+              private TextView networkStatus;
+              private Button syncButton;
+
+              private SharedPreferences preferences;
+              private TimeIsClient timeIsClient;
+              private ConnectivityAndInternetAccess.NetworkObserver networkObserver;
+              private ConnectivityAndInternetAccess.Request diagnosticRequest;
+              private ConnectivityAndInternetAccess.NetworkState latestNetworkState;
+
+              private boolean started;
+              private boolean syncInProgress;
+              private long lastSuccessfulSyncElapsedMs;
+              private long lastRttMs;
+              private long lastUncertaintyMs;
+              private String lastParserSource = "—";
+              private long lastSyncWallMs;
+
+              private final Runnable clockTicker = new Runnable() {
+                  @Override
+                  public void run() {
+                      renderClock();
+                      if (started) {
+                          uiHandler.postDelayed(this, 50L);
+                      }
+                  }
+              };
+
+              private final Runnable periodicSyncTicker = new Runnable() {
+                  @Override
+                  public void run() {
+                      if (!started) return;
+                      long intervalMs = getSettings().intervalSeconds * 1000L;
+                      long nowElapsed = SystemClock.elapsedRealtime();
+                      if (isApiConfigured()
+                              && !syncInProgress
+                              && (lastSuccessfulSyncElapsedMs == 0L
+                                  || nowElapsed - lastSuccessfulSyncElapsedMs >= intervalMs)) {
+                          syncNow(false);
+                      }
+                      uiHandler.postDelayed(this, 15_000L);
+                  }
+              };
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  setContentView(R.layout.activity_main);
+
+                  preferences = getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                  timeIsClient = new TimeIsClient();
+
+                  atomicTime = findViewById(R.id.atomicTime);
+                  atomicDate = findViewById(R.id.atomicDate);
+                  utcTime = findViewById(R.id.utcTime);
+                  systemError = findViewById(R.id.systemError);
+                  systemTime = findViewById(R.id.systemTime);
+                  syncStatus = findViewById(R.id.syncStatus);
+                  sourceDetails = findViewById(R.id.sourceDetails);
+                  networkStatus = findViewById(R.id.networkStatus);
+                  syncButton = findViewById(R.id.syncButton);
+
+                  syncButton.setOnClickListener(v -> syncNow(true));
+                  findViewById(R.id.settingsButton).setOnClickListener(v -> showSettingsDialog());
+                  findViewById(R.id.openTimeIsButton).setOnClickListener(v -> openTimeIs());
+
+                  if (!isApiConfigured()) {
+                      syncStatus.setText("Configure la URL y las credenciales de la API oficial de Time.is.");
+                  }
+                  renderClock();
+                  renderSourceDetails();
+              }
+
+              @Override
+              protected void onStart() {
+                  super.onStart();
+                  started = true;
+                  latestNetworkState = ConnectivityAndInternetAccess.snapshotNetworkState(this);
+                  networkObserver = ConnectivityAndInternetAccess.observeNetwork(this, state -> {
+                      latestNetworkState = state;
+                      renderNetworkState(state);
+                      if (state.isConnected() && isApiConfigured() && needsSyncSoon() && !syncInProgress) {
+                          syncNow(false);
+                      }
+                  });
+                  uiHandler.removeCallbacks(clockTicker);
+                  uiHandler.removeCallbacks(periodicSyncTicker);
+                  uiHandler.post(clockTicker);
+                  uiHandler.post(periodicSyncTicker);
+              }
+
+              @Override
+              protected void onStop() {
+                  started = false;
+                  uiHandler.removeCallbacks(clockTicker);
+                  uiHandler.removeCallbacks(periodicSyncTicker);
+                  if (networkObserver != null) {
+                      networkObserver.close();
+                      networkObserver = null;
+                  }
+                  if (diagnosticRequest != null) {
+                      diagnosticRequest.cancel();
+                      diagnosticRequest = null;
+                  }
+                  if (timeIsClient != null) {
+                      timeIsClient.cancel();
+                  }
+                  syncInProgress = false;
+                  super.onStop();
+              }
+
+              @Override
+              protected void onDestroy() {
+                  if (timeIsClient != null) {
+                      timeIsClient.shutdown();
+                  }
+                  super.onDestroy();
+              }
+
+              private void syncNow(boolean userInitiated) {
+                  if (syncInProgress) return;
+                  final TimeIsClient.Settings settings = getSettings();
+                  if (settings.endpoint.trim().isEmpty()) {
+                      syncStatus.setText("Falta configurar la API oficial de Time.is.");
+                      if (userInitiated) showSettingsDialog();
+                      return;
+                  }
+                  if (!settings.endpoint.startsWith("https://")) {
+                      syncStatus.setText("La URL de Time.is debe usar HTTPS.");
+                      return;
+                  }
+                  if (latestNetworkState != null && !latestNetworkState.isConnected()) {
+                      syncStatus.setText("Sin red disponible. La sincronización se reintentará al volver la conexión.");
+                      return;
+                  }
+
+                  syncInProgress = true;
+                  syncButton.setEnabled(false);
+                  syncStatus.setText("Sincronizando con Time.is…");
+
+                  timeIsClient.fetch(settings, new TimeIsClient.Callback() {
+                      @Override
+                      public void onSuccess(TimeIsClient.SyncResult result) {
+                          if (!started) return;
+                          syncInProgress = false;
+                          syncButton.setEnabled(true);
+                          clockModel.calibrate(
+                                  result.estimatedServerAtReceiveMs,
+                                  result.responseElapsedRealtimeNanos);
+                          lastSuccessfulSyncElapsedMs = SystemClock.elapsedRealtime();
+                          lastRttMs = result.rttMs;
+                          lastUncertaintyMs = result.uncertaintyMs;
+                          lastParserSource = result.serverTimeSource;
+                          lastSyncWallMs = System.currentTimeMillis();
+                          syncStatus.setText("Sincronizado con Time.is");
+                          syncStatus.setTextColor(getResources().getColor(R.color.ok));
+                          renderSourceDetails();
+                          renderClock();
+                      }
+
+                      @Override
+                      public void onFailure(String message, boolean receivedHttpResponse) {
+                          if (!started) return;
+                          syncInProgress = false;
+                          syncButton.setEnabled(true);
+                          syncStatus.setText("No se pudo sincronizar con Time.is: " + message);
+                          syncStatus.setTextColor(getResources().getColor(R.color.error));
+                          if (!receivedHttpResponse) {
+                              runConnectivityDiagnosis();
+                          }
+                      }
+                  });
+              }
+
+              private void runConnectivityDiagnosis() {
+                  if (diagnosticRequest != null) diagnosticRequest.cancel();
+                  diagnosticRequest = connectivity.checkInternetAsync(this, result -> {
+                      if (!started) return;
+                      if (result.isReachable()) {
+                          networkStatus.setText(
+                                  "Internet general accesible (diagnóstico: " + result.getReachedHost()
+                                          + "). El problema parece específico de Time.is/API/configuración.");
+                      } else {
+                          networkStatus.setText(
+                                  "Sin acceso general a Internet. Intentos: " + result.getAttemptedHosts());
+                      }
+                  });
+              }
+
+              private void renderClock() {
+                  long systemNow = System.currentTimeMillis();
+                  long displayNow = clockModel.isCalibrated() ? clockModel.nowMs() : systemNow;
+
+                  SimpleDateFormat localTimeFormat = new SimpleDateFormat("HH:mm:ss.SSS", Locale.getDefault());
+                  SimpleDateFormat localDateFormat = new SimpleDateFormat("EEEE, d MMMM yyyy", Locale.getDefault());
+                  SimpleDateFormat utcFormat = new SimpleDateFormat("HH:mm:ss.SSS 'UTC'", Locale.US);
+                  utcFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+                  Date displayDate = new Date(displayNow);
+                  atomicTime.setText(localTimeFormat.format(displayDate));
+                  atomicDate.setText(localDateFormat.format(displayDate));
+                  utcTime.setText(utcFormat.format(displayDate));
+                  systemTime.setText("Hora del sistema: " + localTimeFormat.format(new Date(systemNow)));
+
+                  if (!clockModel.isCalibrated()) {
+                      systemError.setText("Sin calibrar");
+                      systemError.setTextColor(getResources().getColor(R.color.text_primary));
+                      return;
+                  }
+
+                  long signedErrorMs = systemNow - displayNow;
+                  String formatted = formatOffset(signedErrorMs);
+                  if (Math.abs(signedErrorMs) <= lastUncertaintyMs) {
+                      systemError.setText("Dentro de la incertidumbre: " + formatted);
+                      systemError.setTextColor(getResources().getColor(R.color.ok));
+                  } else if (signedErrorMs > 0L) {
+                      systemError.setText("Adelantado " + formatted.substring(1));
+                      systemError.setTextColor(getResources().getColor(R.color.warning));
+                  } else {
+                      systemError.setText("Atrasado " + formatted.substring(1));
+                      systemError.setTextColor(getResources().getColor(R.color.warning));
+                  }
+              }
+
+              private void renderSourceDetails() {
+                  String lastSync = "—";
+                  if (lastSyncWallMs > 0L) {
+                      lastSync = new SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+                              .format(new Date(lastSyncWallMs));
+                  }
+                  sourceDetails.setText(
+                          "Fuente: Time.is API (" + lastParserSource + ")"
+                                  + "\nÚltima sincronización: " + lastSync
+                                  + "\nRTT: " + (lastRttMs > 0 ? lastRttMs + " ms" : "—")
+                                  + "\nIncertidumbre estimada: "
+                                  + (lastUncertaintyMs > 0 ? "±" + lastUncertaintyMs + " ms" : "—")
+                                  + "\nIntervalo: " + getSettings().intervalSeconds + " s");
+              }
+
+              private void renderNetworkState(ConnectivityAndInternetAccess.NetworkState state) {
+                  StringBuilder text = new StringBuilder("Red: ");
+                  text.append(state.isConnected() ? "conectada" : "sin conexión");
+                  if (android.os.Build.VERSION.SDK_INT >= 23) {
+                      text.append(" · validada=").append(state.isInternetValidated());
+                      text.append(" · portal cautivo=").append(state.isCaptivePortalDetected());
+                  }
+                  networkStatus.setText(text.toString());
+              }
+
+              private boolean needsSyncSoon() {
+                  if (lastSuccessfulSyncElapsedMs == 0L) return true;
+                  return SystemClock.elapsedRealtime() - lastSuccessfulSyncElapsedMs
+                          >= getSettings().intervalSeconds * 1000L;
+              }
+
+              private boolean isApiConfigured() {
+                  return !preferences.getString(PREF_API_URL, "").trim().isEmpty();
+              }
+
+              private TimeIsClient.Settings getSettings() {
+                  String endpoint = preferences.getString(PREF_API_URL, "");
+                  String apiKey = preferences.getString(PREF_API_KEY, "");
+                  String authHeader = preferences.getString(PREF_AUTH_HEADER, "Authorization");
+                  String authPrefix = preferences.getString(PREF_AUTH_PREFIX, "Bearer ");
+                  long interval = preferences.getLong(PREF_INTERVAL_SECONDS, DEFAULT_INTERVAL_SECONDS);
+                  if (interval < MIN_INTERVAL_SECONDS) interval = MIN_INTERVAL_SECONDS;
+                  return new TimeIsClient.Settings(endpoint, apiKey, authHeader, authPrefix, interval);
+              }
+
+              private void showSettingsDialog() {
+                  TimeIsClient.Settings current = getSettings();
+                  LinearLayout container = new LinearLayout(this);
+                  container.setOrientation(LinearLayout.VERTICAL);
+                  int pad = dp(20);
+                  container.setPadding(pad, dp(8), pad, 0);
+
+                  EditText endpoint = field("URL HTTPS de la API oficial de Time.is", current.endpoint, false);
+                  EditText apiKey = field("API key (si la API la requiere)", current.apiKey, true);
+                  EditText header = field("Cabecera de autenticación", current.authHeader, false);
+                  EditText prefix = field("Prefijo de autenticación", current.authPrefix, false);
+                  EditText interval = field("Intervalo de sincronización (segundos, mínimo 60)",
+                          String.valueOf(current.intervalSeconds), false);
+                  interval.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+                  container.addView(endpoint);
+                  container.addView(apiKey);
+                  container.addView(header);
+                  container.addView(prefix);
+                  container.addView(interval);
+
+                  new AlertDialog.Builder(this)
+                          .setTitle("API oficial de Time.is")
+                          .setMessage("Time.is prohíbe el refresco automático de su web desde apps. Introduzca aquí la URL y credenciales de la API oficial que le proporcione Time.is. Puede usar {key} en la URL si la clave debe ir como parámetro.")
+                          .setView(container)
+                          .setNegativeButton("Cancelar", null)
+                          .setNeutralButton("Abrir Time.is", (dialog, which) -> openTimeIs())
+                          .setPositiveButton("Guardar", (dialog, which) -> {
+                              String url = endpoint.getText().toString().trim();
+                              if (!url.isEmpty() && !url.startsWith("https://")) {
+                                  Toast.makeText(this, "La URL debe usar HTTPS", Toast.LENGTH_LONG).show();
+                                  return;
+                              }
+                              long seconds = DEFAULT_INTERVAL_SECONDS;
+                              try {
+                                  seconds = Long.parseLong(interval.getText().toString().trim());
+                              } catch (NumberFormatException ignored) {
+                              }
+                              seconds = Math.max(MIN_INTERVAL_SECONDS, Math.min(seconds, 3600L));
+                              preferences.edit()
+                                      .putString(PREF_API_URL, url)
+                                      .putString(PREF_API_KEY, apiKey.getText().toString())
+                                      .putString(PREF_AUTH_HEADER, header.getText().toString().trim())
+                                      .putString(PREF_AUTH_PREFIX, prefix.getText().toString())
+                                      .putLong(PREF_INTERVAL_SECONDS, seconds)
+                                      .apply();
+                              renderSourceDetails();
+                              if (!url.isEmpty()) syncNow(true);
+                          })
+                          .show();
+              }
+
+              private EditText field(String hint, String value, boolean secret) {
+                  EditText editText = new EditText(this);
+                  editText.setHint(hint);
+                  editText.setText(value);
+                  editText.setSingleLine(true);
+                  editText.setLayoutParams(new LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT));
+                  if (secret) {
+                      editText.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+                  }
+                  return editText;
+              }
+
+              private int dp(int value) {
+                  return Math.round(value * getResources().getDisplayMetrics().density);
+              }
+
+              private void openTimeIs() {
+                  try {
+                      startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://time.is/")));
+                  } catch (Exception e) {
+                      Toast.makeText(this, "No se pudo abrir el navegador", Toast.LENGTH_SHORT).show();
+                  }
+              }
+
+              private static String formatOffset(long ms) {
+                  String sign = ms >= 0 ? "+" : "−";
+                  long abs = Math.abs(ms);
+                  if (abs < 1000L) return sign + abs + " ms";
+                  return String.format(Locale.US, "%s%.3f s", sign, abs / 1000.0);
+              }
+          }
+          EOF
+
+          cat > target/app/src/main/java/com/rodrigosambade/atomicwatch/AtomicClockModel.java <<'EOF'
+          package com.rodrigosambade.atomicwatch;
+
+          import android.os.SystemClock;
+
+          final class AtomicClockModel {
+              private boolean calibrated;
+              private long anchorEpochMs;
+              private long anchorElapsedRealtimeNanos;
+
+              void calibrate(long epochAtReceiveMs, long receiveElapsedRealtimeNanos) {
+                  calibrated = true;
+                  anchorEpochMs = epochAtReceiveMs;
+                  anchorElapsedRealtimeNanos = receiveElapsedRealtimeNanos;
+              }
+
+              boolean isCalibrated() {
+                  return calibrated;
+              }
+
+              long nowMs() {
+                  if (!calibrated) return System.currentTimeMillis();
+                  long deltaNanos = SystemClock.elapsedRealtimeNanos() - anchorElapsedRealtimeNanos;
+                  return anchorEpochMs + deltaNanos / 1_000_000L;
+              }
+          }
+          EOF
+
+          cat > target/app/src/main/java/com/rodrigosambade/atomicwatch/TimeIsClient.java <<'EOF'
+          package com.rodrigosambade.atomicwatch;
+
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.os.SystemClock;
+
+          import org.json.JSONArray;
+          import org.json.JSONException;
+          import org.json.JSONObject;
+
+          import java.io.BufferedReader;
+          import java.io.IOException;
+          import java.io.InputStream;
+          import java.io.InputStreamReader;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.net.URLEncoder;
+          import java.nio.charset.StandardCharsets;
+          import java.text.ParseException;
+          import java.text.SimpleDateFormat;
+          import java.util.ArrayList;
+          import java.util.Date;
+          import java.util.Iterator;
+          import java.util.List;
+          import java.util.Locale;
+          import java.util.TimeZone;
+          import java.util.concurrent.ExecutorService;
+          import java.util.concurrent.Executors;
+          import java.util.concurrent.Future;
+
+          final class TimeIsClient {
+              private static final int CONNECT_TIMEOUT_MS = 5000;
+              private static final int READ_TIMEOUT_MS = 5000;
+              private static final long TIME_IS_BASE_UNCERTAINTY_MS = 100L;
+
+              interface Callback {
+                  void onSuccess(SyncResult result);
+                  void onFailure(String message, boolean receivedHttpResponse);
+              }
+
+              static final class Settings {
+                  final String endpoint;
+                  final String apiKey;
+                  final String authHeader;
+                  final String authPrefix;
+                  final long intervalSeconds;
+
+                  Settings(String endpoint, String apiKey, String authHeader, String authPrefix,
+                           long intervalSeconds) {
+                      this.endpoint = endpoint == null ? "" : endpoint.trim();
+                      this.apiKey = apiKey == null ? "" : apiKey;
+                      this.authHeader = authHeader == null ? "" : authHeader.trim();
+                      this.authPrefix = authPrefix == null ? "" : authPrefix;
+                      this.intervalSeconds = intervalSeconds;
+                  }
+              }
+
+              static final class SyncResult {
+                  final long estimatedServerAtReceiveMs;
+                  final long responseElapsedRealtimeNanos;
+                  final long rttMs;
+                  final long uncertaintyMs;
+                  final String serverTimeSource;
+
+                  SyncResult(long estimatedServerAtReceiveMs,
+                             long responseElapsedRealtimeNanos,
+                             long rttMs,
+                             long uncertaintyMs,
+                             String serverTimeSource) {
+                      this.estimatedServerAtReceiveMs = estimatedServerAtReceiveMs;
+                      this.responseElapsedRealtimeNanos = responseElapsedRealtimeNanos;
+                      this.rttMs = rttMs;
+                      this.uncertaintyMs = uncertaintyMs;
+                      this.serverTimeSource = serverTimeSource;
+                  }
+              }
+
+              private final ExecutorService executor = Executors.newSingleThreadExecutor(r -> {
+                  Thread thread = new Thread(r, "time-is-sync");
+                  thread.setDaemon(true);
+                  return thread;
+              });
+              private final Handler mainHandler = new Handler(Looper.getMainLooper());
+              private volatile Future<?> inFlight;
+
+              void fetch(Settings settings, Callback callback) {
+                  cancel();
+                  inFlight = executor.submit(() -> {
+                      try {
+                          SyncResult result = perform(settings);
+                          if (!Thread.currentThread().isInterrupted()) {
+                              mainHandler.post(() -> callback.onSuccess(result));
+                          }
+                      } catch (HttpStatusException e) {
+                          mainHandler.post(() -> callback.onFailure(e.getMessage(), true));
+                      } catch (Exception e) {
+                          if (!Thread.currentThread().isInterrupted()) {
+                              String message = e.getMessage();
+                              if (message == null || message.trim().isEmpty()) {
+                                  message = e.getClass().getSimpleName();
+                              }
+                              final String finalMessage = message;
+                              mainHandler.post(() -> callback.onFailure(finalMessage, false));
+                          }
+                      }
+                  });
+              }
+
+              void cancel() {
+                  Future<?> task = inFlight;
+                  if (task != null) {
+                      task.cancel(true);
+                      inFlight = null;
+                  }
+              }
+
+              void shutdown() {
+                  cancel();
+                  executor.shutdownNow();
+              }
+
+              private static SyncResult perform(Settings settings) throws Exception {
+                  if (settings.endpoint.isEmpty()) throw new IOException("API no configurada");
+                  String endpoint = settings.endpoint;
+                  if (!settings.apiKey.isEmpty() && endpoint.contains("{key}")) {
+                      endpoint = endpoint.replace("{key}", URLEncoder.encode(settings.apiKey, "UTF-8"));
+                  }
+                  URL url = new URL(endpoint);
+                  if (!"https".equalsIgnoreCase(url.getProtocol())) {
+                      throw new IOException("La API debe usar HTTPS");
+                  }
+
+                  HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                  connection.setRequestMethod("GET");
+                  connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+                  connection.setReadTimeout(READ_TIMEOUT_MS);
+                  connection.setUseCaches(false);
+                  connection.setRequestProperty("Accept", "application/json, text/plain;q=0.9, */*;q=0.1");
+                  connection.setRequestProperty("User-Agent", "AtomicWatch/1.0 Android");
+                  if (!settings.apiKey.isEmpty()
+                          && !settings.endpoint.contains("{key}")
+                          && !settings.authHeader.isEmpty()) {
+                      connection.setRequestProperty(settings.authHeader, settings.authPrefix + settings.apiKey);
+                  }
+
+                  long requestMono = SystemClock.elapsedRealtimeNanos();
+                  try {
+                      int status = connection.getResponseCode();
+                      InputStream stream = status >= 200 && status < 300
+                              ? connection.getInputStream() : connection.getErrorStream();
+                      String body = readBody(stream);
+                      long responseMono = SystemClock.elapsedRealtimeNanos();
+                      long rttMs = Math.max(0L, (responseMono - requestMono) / 1_000_000L);
+
+                      if (status < 200 || status >= 300) {
+                          String suffix = body.isEmpty() ? "" : ": " + abbreviate(body, 160);
+                          throw new HttpStatusException("HTTP " + status + suffix);
+                      }
+
+                      ParsedServerTime parsed = ServerTimeParser.parse(body, connection);
+                      long estimatedAtReceive = parsed.epochMs + rttMs / 2L;
+                      long networkUncertainty = rttMs / 2L + parsed.resolutionMs / 2L;
+                      long uncertainty = Math.max(TIME_IS_BASE_UNCERTAINTY_MS, networkUncertainty);
+                      return new SyncResult(
+                              estimatedAtReceive,
+                              responseMono,
+                              rttMs,
+                              uncertainty,
+                              parsed.source);
+                  } finally {
+                      connection.disconnect();
+                  }
+              }
+
+              private static String readBody(InputStream stream) throws IOException {
+                  if (stream == null) return "";
+                  BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8));
+                  StringBuilder out = new StringBuilder();
+                  char[] buffer = new char[2048];
+                  int read;
+                  while ((read = reader.read(buffer)) != -1) {
+                      out.append(buffer, 0, read);
+                      if (out.length() > 256_000) throw new IOException("Respuesta demasiado grande");
+                  }
+                  return out.toString().trim();
+              }
+
+              private static String abbreviate(String value, int max) {
+                  String normalized = value.replace('\n', ' ').replace('\r', ' ').trim();
+                  return normalized.length() <= max ? normalized : normalized.substring(0, max) + "…";
+              }
+
+              private static final class HttpStatusException extends IOException {
+                  HttpStatusException(String message) { super(message); }
+              }
+
+              private static final class ParsedServerTime {
+                  final long epochMs;
+                  final long resolutionMs;
+                  final String source;
+
+                  ParsedServerTime(long epochMs, long resolutionMs, String source) {
+                      this.epochMs = epochMs;
+                      this.resolutionMs = resolutionMs;
+                      this.source = source;
+                  }
+              }
+
+              private static final class ServerTimeParser {
+                  private static final String[] PRIORITY_KEYS = {
+                          "epochMillis", "epoch_millis", "unixMillis", "unix_millis",
+                          "unixtime", "unix_time", "unix", "timestamp", "epoch",
+                          "datetime", "dateTime", "utc_datetime", "serverTime",
+                          "server_time", "time", "now"
+                  };
+
+                  static ParsedServerTime parse(String body, HttpURLConnection connection)
+                          throws IOException {
+                      ParsedServerTime parsed = parseBody(body);
+                      if (parsed != null) return parsed;
+
+                      long headerDate = connection.getHeaderFieldDate("Date", -1L);
+                      if (headerDate > 0L) {
+                          return new ParsedServerTime(headerDate, 1000L, "HTTP Date header");
+                      }
+                      throw new IOException(
+                              "La respuesta no contiene un timestamp reconocible. Ajuste el adaptador a la respuesta de su API de Time.is.");
+                  }
+
+                  private static ParsedServerTime parseBody(String body) {
+                      if (body == null || body.trim().isEmpty()) return null;
+                      String trimmed = body.trim();
+
+                      ParsedServerTime direct = parseScalar(trimmed, "body");
+                      if (direct != null) return direct;
+
+                      try {
+                          if (trimmed.startsWith("{")) {
+                              return parseJsonObject(new JSONObject(trimmed), 0, "json");
+                          }
+                          if (trimmed.startsWith("[")) {
+                              JSONArray array = new JSONArray(trimmed);
+                              for (int i = 0; i < Math.min(array.length(), 8); i++) {
+                                  Object value = array.opt(i);
+                                  ParsedServerTime hit = parseJsonValue(value, 0, "json[" + i + "]");
+                                  if (hit != null) return hit;
+                              }
+                          }
+                      } catch (JSONException ignored) {
+                      }
+                      return null;
+                  }
+
+                  private static ParsedServerTime parseJsonObject(JSONObject object, int depth, String path) {
+                      if (depth > 3) return null;
+                      for (String key : PRIORITY_KEYS) {
+                          if (object.has(key)) {
+                              ParsedServerTime hit = parseJsonValue(object.opt(key), depth + 1, path + "." + key);
+                              if (hit != null) return hit;
+                          }
+                      }
+                      Iterator<String> keys = object.keys();
+                      while (keys.hasNext()) {
+                          String key = keys.next();
+                          Object value = object.opt(key);
+                          if (value instanceof JSONObject || value instanceof JSONArray) {
+                              ParsedServerTime hit = parseJsonValue(value, depth + 1, path + "." + key);
+                              if (hit != null) return hit;
+                          }
+                      }
+                      return null;
+                  }
+
+                  private static ParsedServerTime parseJsonValue(Object value, int depth, String path) {
+                      if (value == null || value == JSONObject.NULL || depth > 4) return null;
+                      if (value instanceof Number || value instanceof String) {
+                          return parseScalar(String.valueOf(value), path);
+                      }
+                      if (value instanceof JSONObject) {
+                          return parseJsonObject((JSONObject) value, depth, path);
+                      }
+                      if (value instanceof JSONArray) {
+                          JSONArray array = (JSONArray) value;
+                          for (int i = 0; i < Math.min(array.length(), 8); i++) {
+                              ParsedServerTime hit = parseJsonValue(array.opt(i), depth + 1, path + "[" + i + "]");
+                              if (hit != null) return hit;
+                          }
+                      }
+                      return null;
+                  }
+
+                  private static ParsedServerTime parseScalar(String raw, String source) {
+                      if (raw == null) return null;
+                      String value = raw.trim();
+                      if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+                          value = value.substring(1, value.length() - 1).trim();
+                      }
+                      try {
+                          double numeric = Double.parseDouble(value);
+                          long epoch = normalizeEpoch(numeric);
+                          if (isPlausibleEpoch(epoch)) {
+                              long resolution = value.contains(".") ? 1L : (numeric < 100_000_000_000L ? 1000L : 1L);
+                              return new ParsedServerTime(epoch, resolution, source);
+                          }
+                      } catch (NumberFormatException ignored) {
+                      }
+
+                      Long iso = parseIso8601(value);
+                      if (iso != null && isPlausibleEpoch(iso)) {
+                          long resolution = value.contains(".") ? 1L : 1000L;
+                          return new ParsedServerTime(iso, resolution, source);
+                      }
+                      return null;
+                  }
+
+                  private static long normalizeEpoch(double value) {
+                      double abs = Math.abs(value);
+                      if (abs > 1.0e17) return Math.round(value / 1.0e6);      // nanoseconds
+                      if (abs > 1.0e14) return Math.round(value / 1.0e3);      // microseconds
+                      if (abs > 1.0e11) return Math.round(value);              // milliseconds
+                      return Math.round(value * 1000.0);                        // seconds
+                  }
+
+                  private static boolean isPlausibleEpoch(long epochMs) {
+                      long year2000 = 946684800000L;
+                      long year2200 = 7258118400000L;
+                      return epochMs >= year2000 && epochMs <= year2200;
+                  }
+
+                  private static Long parseIso8601(String input) {
+                      if (input == null || input.length() < 10) return null;
+                      String normalized = input.trim();
+                      if (normalized.endsWith("Z")) {
+                          normalized = normalized.substring(0, normalized.length() - 1) + "+0000";
+                      } else if (normalized.matches(".*[+-]\\d\\d:\\d\\d$")) {
+                          int colon = normalized.length() - 3;
+                          normalized = normalized.substring(0, colon) + normalized.substring(colon + 1);
+                      }
+
+                      String[] patterns = {
+                              "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
+                              "yyyy-MM-dd'T'HH:mm:ssZ",
+                              "yyyy-MM-dd HH:mm:ss.SSSZ",
+                              "yyyy-MM-dd HH:mm:ssZ",
+                              "yyyy-MM-dd'T'HH:mm:ss.SSS",
+                              "yyyy-MM-dd'T'HH:mm:ss",
+                              "yyyy-MM-dd HH:mm:ss.SSS",
+                              "yyyy-MM-dd HH:mm:ss"
+                      };
+                      for (String pattern : patterns) {
+                          SimpleDateFormat format = new SimpleDateFormat(pattern, Locale.US);
+                          format.setLenient(false);
+                          format.setTimeZone(TimeZone.getTimeZone("UTC"));
+                          try {
+                              Date date = format.parse(normalized);
+                              if (date != null) return date.getTime();
+                          } catch (ParseException ignored) {
+                          }
+                      }
+                      return null;
+                  }
+              }
+          }
+          EOF
+
+          cat > target/README.md <<EOF
+          # Atomic Watch
+
+          Android atomic-clock style application that calibrates against the **official Time.is API**, continuously renders the calibrated time from a monotonic anchor, and shows the signed error of the Android system clock.
+
+          ## Important: Time.is API, not scraping
+
+          Time.is states in its Terms of Use that automatic refresh and usage from scripts/apps is forbidden and asks app developers to contact them about their API. Therefore this project **does not scrape or periodically reload https://time.is/**.
+
+          Configure the official API URL and credentials supplied by Time.is from the app's **Configurar Time.is** dialog. The client supports a normal authentication header and also a `{key}` placeholder in the URL for APIs that require a query/path key.
+
+          ## Clock model
+
+          * The Time.is response establishes an epoch anchor at `SystemClock.elapsedRealtimeNanos()`.
+          * The visible clock advances locally from that monotonic anchor, so the app does not need a server request every second and is not affected by later wall-clock corrections.
+          * The system-clock error is `System.currentTimeMillis() - calibratedTime`. Positive means Android is ahead; negative means it is behind.
+          * Round-trip latency is measured with the monotonic clock and half of RTT is applied as a one-way latency estimate.
+          * Displayed uncertainty is conservatively bounded by at least 100 ms, consistent with Time.is' published normal web accuracy range, plus transport/timestamp resolution where larger.
+          * Default resynchronization interval is 300 seconds; configurable from 60 to 3600 seconds while the app is in the foreground.
+
+          ## Connectivity
+
+          The complete connectivity gist is vendored at `third_party/connectivity/` at revision `${GIST_REV}`. The Java implementation is copied **unchanged** into the Android source set under its original package `net.i2p.android.router.util`.
+
+          The app uses the gist's passive `NetworkObserver` for normal state changes. It makes the actual Time.is API request first. Only when that request fails without an HTTP response does it run the gist's active DNS/HTTP reachability diagnostic, matching the recommended backend-first pattern.
+
+          ## Android
+
+          * Java 8 bytecode
+          * minSdk 16
+          * target/compile SDK 35
+          * INTERNET + ACCESS_NETWORK_STATE only
+          * No permission or attempt to modify Android system time
+
+          ## Build
+
+          ```bash
+          ./gradlew assembleDebug assembleRelease
+          ```
+
+          The `v1.0.0` release APK is signed with the debug signing configuration for direct testing, not for Play Store production distribution.
+          EOF
+
+          cat > target/third_party/connectivity/ATOMIC_WATCH_INTEGRATION.md <<EOF
+          # Atomic Watch integration
+
+          Source gist: https://gist.github.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f
+
+          Pinned gist revision: `${GIST_REV}`
+
+          This directory is a complete checkout of that gist at the pinned revision. `ConnectivityAndInternetAccess.java` is copied byte-for-byte to the app source set and retains its original package declaration.
+          EOF
+
+          cat > target/LICENSE <<'EOF'
+          MIT License
+
+          Copyright (c) 2026 Rodrigo Sambade Saá
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          EOF
+
+      - name: Build Debug and Release APKs
+        working-directory: target
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleDebug assembleRelease
+
+      - name: Verify vendored connectivity source is byte-identical
+        working-directory: target
+        run: cmp third_party/connectivity/ConnectivityAndInternetAccess.java app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
+
+      - name: Commit completed application
+        working-directory: target
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Implement Atomic Watch Android app"
+          git push origin HEAD:main
+
+      - name: Publish v1.0.0 test release
+        working-directory: target
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk atomic-watch-v1.0.0.apk
+          gh release create v1.0.0 atomic-watch-v1.0.0.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target main \
+            --title "v1.0.0 - Atomic Watch" \
+            --notes "Reloj calibrado con la API oficial de Time.is, cálculo del error del reloj del sistema, ancla monotónica, observador de red y gist completo ConnectivityAndInternetAccess integrado. Configure en la app la URL/credenciales de la API oficial de Time.is."
