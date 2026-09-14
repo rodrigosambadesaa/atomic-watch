@@ -126,7 +126,7 @@ public final class MainActivity extends AppCompatActivity {
                     public void onStateChanged(ConnectivityAndInternetAccess.NetworkState state) {
                         currentNetworkState = state;
                         renderNetworkState();
-                        if (ConnectivityPolicy.isConnected(MainActivity.this)
+                        if (ConnectivityAndInternetAccess.isConnected(MainActivity.this)
                                 && isApiConfigured()
                                 && needsSyncSoon()
                                 && !syncInProgress) {
@@ -175,7 +175,7 @@ public final class MainActivity extends AppCompatActivity {
 
         // Every actual network operation is gated by the passive connectivity state.
         // Do not treat CONNECTING as sufficient to start a backend request.
-        if (!ConnectivityPolicy.isConnected(this)) {
+        if (!ConnectivityAndInternetAccess.isConnected(this)) {
             syncStatus.setText("Sin red utilizable. Se reintentará al volver la conexión.");
             return;
         }
@@ -221,7 +221,7 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void runConnectivityDiagnosis() {
-        if (!ConnectivityPolicy.isConnected(this)) {
+        if (!ConnectivityAndInternetAccess.isConnected(this)) {
             networkStatus.setText("Sin red utilizable tras el fallo de conexión con Time.is.");
             return;
         }
@@ -298,7 +298,7 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderNetworkState() {
-        boolean connected = ConnectivityPolicy.isConnected(this);
+        boolean connected = ConnectivityAndInternetAccess.isConnected(this);
         boolean connecting = ConnectivityAndInternetAccess.isConnecting(this);
         boolean wifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
         boolean mobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
