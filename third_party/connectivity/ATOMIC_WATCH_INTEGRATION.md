@@ -2,6 +2,12 @@
 
 Source gist: https://gist.github.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f
 
-Pinned revision: `ce7bd07ed17d10d48785a0c21527c8100ea6da7e`
+Pinned revision: `3b0497e976765653a7467e3bd7d6bff28b96bd7c` (2026-09-11)
 
-This directory is a complete checkout of that gist at the pinned revision. `ConnectivityAndInternetAccess.java` is copied byte-for-byte to the app source set and retains its original package declaration.
+Atomic Watch compiles the Java implementation directly from:
+
+`app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java`
+
+That file is synchronized byte-for-byte from the pinned gist revision and retains its original package declaration.
+
+`third_party/connectivity` intentionally does **not** duplicate `ConnectivityAndInternetAccess.java` or `ConnectivityAndInternetAccess.kt`. It only retains upstream documentation, licensing material, validation notes, and usage examples needed for attribution and reference.

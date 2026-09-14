@@ -24,9 +24,20 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon clean assembleDebug assembleRelease
 
-      - name: Verify complete connectivity gist integration
+      - name: Verify connectivity gist integration
         run: |
-          cmp third_party/connectivity/ConnectivityAndInternetAccess.java \
-              app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
-          test -f third_party/connectivity/ConnectivityAndInternetAccess.kt
+          set -euo pipefail
+          target="app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java"
+          test -f "$target"
+          grep -q 'public static boolean hasUnderlyingNetwork(Context context)' "$target"
+          grep -q 'isEffectivelyUsable' "$target"
+          grep -q 'DEFAULT_TCP_TARGETS' "$target"
+          grep -q 'DEFAULT_NTP_TARGETS' "$target"
+          grep -q 'DEFAULT_TLS_TARGETS' "$target"
+          grep -q 'TOTAL_PROBE_TIMEOUT_MS = 6_000L' "$target"
+          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.java
+          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.kt
+          test ! -e app/src/main/java/com/rodrigosambade/atomicwatch/ConnectivityPolicy.java
+          ! grep -R 'ConnectivityPolicy' app/src/main/java
           test -f third_party/connectivity/README.md
+          test -f third_party/connectivity/LICENSE
