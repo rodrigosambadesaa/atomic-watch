@@ -1,0 +1,59 @@
+name: Publish Atomic Watch v1.0.1
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/release-v1.0.1-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'versionCode 2' app/build.gradle
+          grep -q 'versionName "1.0.1"' app/build.gradle
+          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.java
+          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.kt
+          grep -q 'public static boolean hasUnderlyingNetwork(Context context)' app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
+          grep -q 'isEffectivelyUsable' app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java
+
+      - name: Build release APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew --no-daemon clean assembleRelease
+          cp app/build/outputs/apk/release/app-release.apk atomic-watch-v1.0.1.apk
+          sha256sum atomic-watch-v1.0.1.apk
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v1.0.1 atomic-watch-v1.0.1.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title 'v1.0.1 - Atomic Watch' \
+            --notes $'Actualización de conectividad y fiabilidad de red.\n\n- Integra la versión completa de ConnectivityAndInternetAccess del gist fijada a la revisión 3b0497e976765653a7467e3bd7d6bff28b96bd7c (11/09/2026).\n- Corrige el comportamiento con VPN activa sin una red subyacente utilizable.\n- Usa isConnected() antes de iniciar operaciones reales contra la API de Time.is, sin tratar CONNECTING como conexión suficiente.\n- Mantiene observación continua del estado de red durante el ciclo de vida de la Activity.\n- Solo ejecuta el diagnóstico general de Internet cuando falla la conexión al backend sin recibir respuesta HTTP.\n- Elimina las copias duplicadas Java/Kotlin de third_party/connectivity y mantiene una única implementación compilada.\n- Incluye las estrategias actuales de diagnóstico DNS, TCP, NTP, TLS, IPv4/IPv6 e ICMP del gist.\n\nAPK: atomic-watch-v1.0.1.apk'
