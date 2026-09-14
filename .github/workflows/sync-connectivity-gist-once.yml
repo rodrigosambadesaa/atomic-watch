@@ -2,9 +2,10 @@ name: One-shot exact connectivity gist sync
 
 on:
   push:
-    branches: [ integrate-connectivity-gist-latest ]
+    branches:
+      - integrate-connectivity-gist-latest
     paths:
-      - '.github/workflows/sync-connectivity-gist-once.yml'
+      - .github/workflows/sync-connectivity-gist-once.yml
 
 permissions:
   contents: write
@@ -19,104 +20,33 @@ jobs:
           ref: integrate-connectivity-gist-latest
           fetch-depth: 0
 
-      - name: Sync exact gist revision and clean duplicate sources
+      - name: Download exact gist revision
         shell: bash
         run: |
           set -euo pipefail
-
-          GIST_REVISION='3b0497e976765653a7467e3bd7d6bff28b96bd7c'
-          TARGET='app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java'
-          RAW_URL="https://gist.githubusercontent.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f/raw/${GIST_REVISION}/ConnectivityAndInternetAccess.java"
-
-          curl --fail --silent --show-error --location "$RAW_URL" --output "$TARGET"
-
-          grep -q 'public static boolean hasUnderlyingNetwork(Context context)' "$TARGET"
-          grep -q 'isEffectivelyUsable' "$TARGET"
-          grep -q 'DEFAULT_TCP_TARGETS' "$TARGET"
-          grep -q 'DEFAULT_NTP_TARGETS' "$TARGET"
-          grep -q 'DEFAULT_TLS_TARGETS' "$TARGET"
-          grep -q 'TOTAL_PROBE_TIMEOUT_MS = 6_000L' "$TARGET"
-
-          rm -f third_party/connectivity/ConnectivityAndInternetAccess.java
-          rm -f third_party/connectivity/ConnectivityAndInternetAccess.kt
-          rm -f app/src/main/java/com/rodrigosambade/atomicwatch/ConnectivityPolicy.java
-
-          python3 - <<'PY'
-          from pathlib import Path
-
-          main = Path('app/src/main/java/com/rodrigosambade/atomicwatch/MainActivity.java')
-          text = main.read_text(encoding='utf-8')
-          text = text.replace('ConnectivityPolicy.isConnected(', 'ConnectivityAndInternetAccess.isConnected(')
-          if 'ConnectivityPolicy' in text:
-              raise SystemExit('ConnectivityPolicy reference still present in MainActivity.java')
-          main.write_text(text, encoding='utf-8')
-
-          integration = Path('third_party/connectivity/ATOMIC_WATCH_INTEGRATION.md')
-          integration.write_text('''# Atomic Watch integration
-
-Source gist: https://gist.github.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f
-
-Pinned revision: `3b0497e976765653a7467e3bd7d6bff28b96bd7c` (2026-09-11)
-
-Atomic Watch compiles the Java implementation directly from:
-
-`app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java`
-
-That file is synchronized byte-for-byte from the pinned gist revision and retains its original package declaration.
-
-`third_party/connectivity` intentionally does **not** duplicate `ConnectivityAndInternetAccess.java` or `ConnectivityAndInternetAccess.kt`. It only retains upstream documentation, licensing material, validation notes, and usage examples needed for attribution/reference.
-''', encoding='utf-8')
-
-          ci = Path('.github/workflows/android-ci.yml')
-          ci.write_text('''name: Android CI
-
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-
-      - name: Build Debug and Release
-        run: |
-          chmod +x gradlew
-          ./gradlew --no-daemon clean assembleDebug assembleRelease
-
-      - name: Verify connectivity gist integration
-        run: |
-          set -euo pipefail
-          target="app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java"
-          test -f "$target"
+          target='app/src/main/java/net/i2p/android/router/util/ConnectivityAndInternetAccess.java'
+          curl --fail --silent --show-error --location 'https://gist.githubusercontent.com/rodrigosambadesaa/729cca29a031fef4e2f15751863b655f/raw/3b0497e976765653a7467e3bd7d6bff28b96bd7c/ConnectivityAndInternetAccess.java' --output "$target"
           grep -q 'public static boolean hasUnderlyingNetwork(Context context)' "$target"
           grep -q 'isEffectivelyUsable' "$target"
           grep -q 'DEFAULT_TCP_TARGETS' "$target"
           grep -q 'DEFAULT_NTP_TARGETS' "$target"
           grep -q 'DEFAULT_TLS_TARGETS' "$target"
           grep -q 'TOTAL_PROBE_TIMEOUT_MS = 6_000L' "$target"
-          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.java
-          test ! -e third_party/connectivity/ConnectivityAndInternetAccess.kt
-          test ! -e app/src/main/java/com/rodrigosambade/atomicwatch/ConnectivityPolicy.java
-          ! grep -R 'ConnectivityPolicy' app/src/main/java
-          test -f third_party/connectivity/README.md
-          test -f third_party/connectivity/LICENSE
-''', encoding='utf-8')
-          PY
 
-          rm -f .github/workflows/sync-connectivity-gist-once.yml
+      - name: Remove duplicate and obsolete integration sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f third_party/connectivity/ConnectivityAndInternetAccess.java
+          rm -f third_party/connectivity/ConnectivityAndInternetAccess.kt
+          rm -f app/src/main/java/com/rodrigosambade/atomicwatch/ConnectivityPolicy.java
+          sed -i 's/ConnectivityPolicy\.isConnected(/ConnectivityAndInternetAccess.isConnected(/g' app/src/main/java/com/rodrigosambade/atomicwatch/MainActivity.java
+          if grep -R -n 'ConnectivityPolicy' app/src/main/java; then
+            echo 'Obsolete ConnectivityPolicy reference remains.' >&2
+            exit 1
+          fi
 
-      - name: Build with synchronized source
+      - name: Build synchronized source
         shell: bash
         run: |
           set -euo pipefail
@@ -127,13 +57,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          rm -f .github/workflows/sync-connectivity-gist-once.yml
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git diff --cached --check
-          if git diff --cached --quiet; then
-            echo 'No changes to commit.'
-            exit 0
-          fi
           git commit -m 'Sync complete connectivity gist revision'
           git push origin HEAD:integrate-connectivity-gist-latest
