@@ -126,7 +126,7 @@ public final class MainActivity extends AppCompatActivity {
                     public void onStateChanged(ConnectivityAndInternetAccess.NetworkState state) {
                         currentNetworkState = state;
                         renderNetworkState();
-                        if (ConnectivityAndInternetAccess.isConnectedOrConnecting(MainActivity.this)
+                        if (ConnectivityPolicy.isConnected(MainActivity.this)
                                 && isApiConfigured()
                                 && needsSyncSoon()
                                 && !syncInProgress) {
@@ -172,8 +172,11 @@ public final class MainActivity extends AppCompatActivity {
             syncStatus.setText("La URL de Time.is debe usar HTTPS.");
             return;
         }
-        if (!ConnectivityAndInternetAccess.isConnectedOrConnecting(this)) {
-            syncStatus.setText("Sin red disponible. Se reintentará al volver la conexión.");
+
+        // Every actual network operation is gated by the passive connectivity state.
+        // Do not treat CONNECTING as sufficient to start a backend request.
+        if (!ConnectivityPolicy.isConnected(this)) {
+            syncStatus.setText("Sin red utilizable. Se reintentará al volver la conexión.");
             return;
         }
 
@@ -209,13 +212,21 @@ public final class MainActivity extends AppCompatActivity {
                 syncButton.setEnabled(true);
                 syncStatus.setText("No se pudo sincronizar con Time.is: " + message);
                 syncStatus.setTextColor(getResources().getColor(R.color.error));
+
+                // An HTTP response proves that the backend was reached. Only diagnose
+                // general Internet access when the backend connection itself failed.
                 if (!receivedHttpResponse) runConnectivityDiagnosis();
             }
         });
     }
 
     private void runConnectivityDiagnosis() {
-        networkStatus.setText("Diagnosticando acceso general a Internet…");
+        if (!ConnectivityPolicy.isConnected(this)) {
+            networkStatus.setText("Sin red utilizable tras el fallo de conexión con Time.is.");
+            return;
+        }
+
+        networkStatus.setText("Time.is no responde. Comprobando acceso general a Internet…");
         ConnectivityAndInternetAccess.checkInternetAsyncDefault(
                 this,
                 new ConnectivityAndInternetAccess.InternetCallback() {
@@ -229,7 +240,8 @@ public final class MainActivity extends AppCompatActivity {
                                             + ", " + result.getElapsedMilliseconds() + " ms). "
                                             + "El fallo parece específico de Time.is/API/configuración.");
                         } else {
-                            networkStatus.setText("El diagnóstico del gist no pudo verificar acceso general a Internet.");
+                            networkStatus.setText(
+                                    "Hay red local, pero el diagnóstico no pudo verificar acceso general a Internet.");
                         }
                     }
                 });
@@ -286,8 +298,8 @@ public final class MainActivity extends AppCompatActivity {
     }
 
     private void renderNetworkState() {
-        boolean connectedOrConnecting = ConnectivityAndInternetAccess.isConnectedOrConnecting(this);
-        boolean connected = ConnectivityAndInternetAccess.isConnected(this);
+        boolean connected = ConnectivityPolicy.isConnected(this);
+        boolean connecting = ConnectivityAndInternetAccess.isConnecting(this);
         boolean wifi = ConnectivityAndInternetAccess.isConnectedWifi(this);
         boolean mobile = ConnectivityAndInternetAccess.isConnectedMobile(this);
         boolean vpn = ConnectivityAndInternetAccess.vpnActive(this);
@@ -296,8 +308,16 @@ public final class MainActivity extends AppCompatActivity {
         boolean captive = ConnectivityAndInternetAccess.isCaptivePortalDetected(this);
 
         StringBuilder text = new StringBuilder("Red: ");
-        if (!connectedOrConnecting && !connected) {
-            text.append(airplane ? "modo avión" : "sin conexión");
+        if (!connected) {
+            if (airplane) {
+                text.append("modo avión");
+            } else if (connecting) {
+                text.append("conectando");
+            } else if (vpn) {
+                text.append("VPN sin red subyacente utilizable");
+            } else {
+                text.append("sin conexión");
+            }
         } else if (captive) {
             text.append("portal cautivo");
         } else {
